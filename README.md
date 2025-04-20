@@ -25,15 +25,16 @@ This interactive, colorful Bash script secures your Ubuntu system with a one-sto
 
 🚀 Quick Start
 
-
+1.
 ```bash
 sudo curl -sSL https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh | bash
 ```
 
-sudo chmod +x ubuntu-hardening.sh
+2. sudo chmod +x ubuntu-hardening.sh
 
 
-sudo ./ubuntu-hardening.sh
+3. sudo ./ubuntu-hardening.sh
+
 
 
 
