@@ -174,11 +174,13 @@ extra_hardening() {
 show_status() {
   log "Checking service status..."
   echo -e "\n${BLUE}UFW:${RESET}"; ufw status verbose
-  echo -e "\n${BLUE}SSH:${RESET}"; systemctl is-active sshd && echo "Active" || echo "Inactive"
+  echo -e "\n${BLUE}SSH (sshd):${RESET}"; systemctl is-active sshd && echo "Active" || echo "Inactive"
   echo -e "\n${BLUE}Suricata IPS:${RESET}"; systemctl is-active suricata-ips && echo "Active" || echo "Inactive"
   echo -e "\n${BLUE}Fail2Ban:${RESET}"; systemctl is-active fail2ban && echo "Active" || echo "Inactive"
   echo -e "\n${BLUE}Portsentry:${RESET}"; systemctl is-active portsentry && echo "Active" || echo "Inactive"
-  echo -e "\n${BLUE}ClamAV & Rkhunter installed?${RESET}"; command -v clamscan &>/dev/null && echo "ClamAV OK" || echo "ClamAV missing"; command -v rkhunter &>/dev/null && echo "Rkhunter OK" || echo "Rkhunter missing"
+  echo -e "\n${BLUE}ClamAV & Rkhunter installed?${RESET}"; 
+  command -v clamscan &>/dev/null && echo "ClamAV OK" || echo "ClamAV missing"; 
+  command -v rkhunter &>/dev/null && echo "Rkhunter OK" || echo "Rkhunter missing"
 }
 
 # === Menu & Main Loop ===
@@ -192,3 +194,39 @@ menu() {
   echo -e "${GREEN}5)${RESET} Configure Fail2Ban"
   echo -e "${GREEN}6)${RESET} Fix NTP & DNS"
   echo -e "${GREEN}7)${RESET} Install/renew Let's Encrypt"
+  echo -e "${GREEN}8)${RESET} Extra Hardening"
+  echo -e "${GREEN}9)${RESET} Show Status"
+  echo -e "${GREEN}10)${RESET} Run ALL steps"
+  echo -e "${RED}0)${RESET} Exit"
+  echo -ne "\n${YELLOW}Choose an option: ${RESET}"
+  read -r choice
+}
+
+while true; do
+  menu
+  case $choice in
+    1) update_system ;; 
+    2) configure_ssh ;; 
+    3) configure_ufw ;; 
+    4) configure_suricata ;; 
+    5) configure_fail2ban ;; 
+    6) fix_ntp_dns ;; 
+    7) install_certbot ;; 
+    8) extra_hardening ;; 
+    9) show_status ;; 
+    10)
+      confirm "Proceed with all hardening steps?"
+      update_system
+      configure_ssh
+      configure_ufw
+      configure_suricata
+      configure_fail2ban
+      fix_ntp_dns
+      install_certbot
+      extra_hardening ;; 
+    0) log "Exiting."; exit 0 ;;
+    *) warn "Invalid choice, try again." ;; 
+  esac
+  echo -e "\n${GREEN}✅ Operation complete. Returning to menu...${RESET}"
+  sleep 1
+done
