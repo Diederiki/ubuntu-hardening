@@ -43,7 +43,7 @@ function change_ssh_port() {
     fi
     sudo ufw allow 3022/tcp
     sudo sed -i 's/^#Port 22/Port 3022/;s/^Port 22/Port 3022/' /etc/ssh/sshd_config
-    sudo systemctl restart sshd
+    sudo systemctl restart ssh
 }
 
 function configure_ufw() {
