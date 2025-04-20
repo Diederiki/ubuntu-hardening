@@ -24,7 +24,7 @@ Includes real-world best practices and tools to harden your server in minutes �
 One-line installer:
 
 
-curl -sSL https://raw.githubusercontent.com/yourusername/ubuntu-hardening/main/vps-harden.sh | bash
+curl -sSL https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh | bash
 
 
 > ⚠️ You’ll need `sudo` access — recommended to run on a fresh Ubuntu 24.04 VPS.
