@@ -1,7 +1,4 @@
----
-
-```markdown
-# 🛡️ Ultimate Ubuntu 24.04 Server Hardening Script
+🛡️ Ultimate Ubuntu 24.04 Server Hardening Script
 
 This interactive, colorful Bash script secures your Ubuntu VPS with a one-stop menu of powerful tools including firewall configuration, IPS/IDS, Fail2Ban integration, rootkit scanners, Let's Encrypt support, and more.
 
