@@ -143,10 +143,19 @@ fix_ntp_dns() {
 }
 
 install_certbot() {
-  [[ -z "$DOMAIN" || -z "$EMAIL" ]] && error "Domain and email must be provided for Let's Encrypt."
-  log "Obtaining SSL certificate for $DOMAIN..."
+  log "Installing/renewing Let's Encrypt certificate..."
+  # Prompt for domain and email if not set
+  if [[ -z "$DOMAIN" ]]; then
+    read -r -p "Enter your domain (e.g. example.com): " DOMAIN
+  fi
+  if [[ -z "$EMAIL" ]]; then
+    read -r -p "Enter your email address: " EMAIL
+  fi
+  # Validate input
+  [[ -z "$DOMAIN" || -z "$EMAIL" ]] && error "Domain and email are required."
   certbot --nginx -d "$DOMAIN" --agree-tos -m "$EMAIL" --redirect --non-interactive
 }
+
 
 extra_hardening() {
   log "Configuring unattended upgrades, Portsentry, Rkhunter, ClamAV..."
@@ -208,14 +217,14 @@ menu() {
   clear
   draw_box "Ubuntu Server Hardening"
   echo -e "${GREEN} 1)${RESET} Update system"
-  echo -e "${GREEN} 2)${RESET} Update SSH port from 22 to 3022"
-  echo -e "${GREEN} 3)${RESET} Configure UFW firewall"
+  echo -e "${GREEN} 2)${RESET} Configure SSH"
+  echo -e "${GREEN} 3)${RESET} Configure UFW"
   echo -e "${GREEN} 4)${RESET} Configure Suricata IPS"
   echo -e "${GREEN} 5)${RESET} Configure Fail2Ban"
-  echo -e "${GREEN} 6)${RESET} Fix NTP & DNS resolution"
-  echo -e "${GREEN} 7)${RESET} Install/renew Let's Encrypt for Apache/Nginx"
-  echo -e "${GREEN} 8)${RESET} Extra Hardening - ClamAV - PortSentry - Rootkit Hunter "
-  echo -e "${GREEN} 9)${RESET} Show system hardening Status"
+  echo -e "${GREEN} 6)${RESET} Fix NTP & DNS"
+  echo -e "${GREEN} 7)${RESET} Install/renew Let's Encrypt"
+  echo -e "${GREEN} 8)${RESET} Extra Hardening"
+  echo -e "${GREEN} 9)${RESET} Show Status"
   echo -e "${GREEN}10)${RESET} View Logs"
   echo -e "${GREEN}11)${RESET} View iptables"
   echo -e "${GREEN}12)${RESET} Run ALL steps"
