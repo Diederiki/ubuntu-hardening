@@ -1,86 +1,112 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# Ultimate Ubuntu 24.04 Server Hardening Script (Interactive Edition with Colors)
-# Author: Diederiki
+# Improved Ubuntu 24.04 Server Hardening Script (Interactive Edition)
+# Author: ChatGPT
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-# === Color codes === #
+# === Constants & Defaults ===
+DEFAULT_SSH_PORT=3022
+SSH_PORT=${SSH_PORT:-$DEFAULT_SSH_PORT}
+DOMAIN=""
+EMAIL=""
+NONINTERACTIVE=false
+
+# === Color Codes ===
 GREEN="\e[1;32m"
 RED="\e[1;31m"
 YELLOW="\e[1;33m"
 BLUE="\e[1;34m"
 RESET="\e[0m"
 
-# === MENU === #
-function menu() {
-    echo -e "\n${BLUE}🛡️  Ultimate VPS Security Hardening Menu${RESET}"
-    echo -e "${BLUE}=========================================${RESET}"
-    echo -e "${GREEN}1)${RESET} Change SSH Port to 3022"
-    echo -e "${GREEN}2)${RESET} Configure UFW (firewall)"
-    echo -e "${GREEN}3)${RESET} Install and configure Suricata IPS"
-    echo -e "${GREEN}4)${RESET} Install and configure Fail2Ban"
-    echo -e "${GREEN}5)${RESET} Fix NTP and DNS resolution"
-    echo -e "${GREEN}6)${RESET} Install Let's Encrypt for Apache/Nginx"
-    echo -e "${GREEN}7)${RESET} Run ALL steps"
-    echo -e "${GREEN}8)${RESET} Extra Hardening: Unattended Updates, PortSentry, Rootkit/AV"
-    echo -e "${GREEN}9)${RESET} Show system hardening status"
-    echo -e "${RED}0) Exit${RESET}"
-    echo -ne "\n${YELLOW}Choose an option: ${RESET}"
-    read choice
+# === Logging ===
+log()   { echo -e "${BLUE}[INFO]${RESET} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${RESET} $*"; }
+error() { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
+
+# === Utilities ===
+confirm() {
+  [[ "$NONINTERACTIVE" == true ]] && return 0
+  read -r -p "$* [y/N]: " resp
+  [[ "$resp" =~ ^[Yy] ]] || error "User declined. Exiting."
 }
 
-function update_system() {
-    echo -e "${YELLOW}[*] Updating system and installing dependencies...${RESET}"
-    sudo apt update && sudo apt upgrade -y
-    sudo apt install -y ufw fail2ban suricata netfilter-persistent curl jq software-properties-common
+# === Argument Parsing ===
+usage() {
+  cat <<EOF
+Usage: $0 [options]
+  -p PORT     SSH port (default: $DEFAULT_SSH_PORT)
+  -d DOMAIN   Domain for Let's Encrypt
+  -e EMAIL    Email for Let's Encrypt
+  -y          Non-interactive (assume yes)
+  -h          Show help
+EOF
+  exit 1
+}
+while getopts ":p:d:e:yh" opt; do
+  case "$opt" in
+    p) SSH_PORT=$OPTARG ;;  
+    d) DOMAIN=$OPTARG ;;  
+    e) EMAIL=$OPTARG ;;  
+    y) NONINTERACTIVE=true ;;  
+    h|*) usage ;;  
+  esac
+done
+
+# === Core Functions ===
+update_system() {
+  log "Updating system and installing prerequisites..."
+  apt update && apt upgrade -y
+  apt install -y ufw fail2ban suricata netfilter-persistent \
+    curl jq software-properties-common certbot python3-certbot-nginx \
+    unattended-upgrades portsentry rkhunter clamav
 }
 
-function change_ssh_port() {
-    echo -e "${YELLOW}[*] Changing SSH port to 3022...${RESET}"
-    if ! command -v ufw &>/dev/null; then
-        echo -e "${YELLOW}[!] UFW not found. Installing ufw...${RESET}"
-        sudo apt update && sudo apt install -y ufw && sudo ufw --force enable
-    fi
-    sudo ufw allow 3022/tcp
-    sudo sed -i 's/^#Port 22/Port 3022/;s/^Port 22/Port 3022/' /etc/ssh/sshd_config
-    if systemctl list-units --type=service | grep -q 'sshd.service'; then
-        sudo systemctl restart sshd
-    else
-        sudo systemctl restart ssh
-    fi
+configure_ssh() {
+  log "Configuring SSH to listen on port $SSH_PORT only..."
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+  # Remove any existing Port directives
+  sed -ri '/^\s*Port\s+[0-9]+/d' /etc/ssh/sshd_config
+  # Add our custom port
+  echo "Port $SSH_PORT" >> /etc/ssh/sshd_config
+  # Disable root login
+  sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+  log "Restarting SSH service..."
+  if systemctl list-units --type=service | grep -q 'sshd.service'; then
+    systemctl restart sshd
+  else
+    systemctl restart ssh
+  fi
 }
 
-function configure_ufw() {
-    echo -e "${YELLOW}[*] Configuring UFW firewall...${RESET}"
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
-    sudo ufw allow 3022/tcp
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    sudo ufw --force enable
+configure_ufw() {
+  log "Setting up UFW rules..."
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow "$SSH_PORT"/tcp
+  ufw allow 80/tcp
+  ufw allow 443/tcp
+  ufw --force enable
 }
 
-function configure_suricata() {
-    echo -e "${YELLOW}[*] Configuring Suricata IPS (NFQUEUE)...${RESET}"
-    INTERFACE=$(ip route get 1.1.1.1 | grep -oP 'dev \K[^ ]+')
-    SSH_PORT=3022
-    TRUSTED_SSH_IP="$(who | awk 'NR==1{print $5}' | tr -d '()')"
+configure_suricata() {
+  log "Configuring Suricata IPS..."
+  local iface trusted_ip
+  iface=$(ip route get 1.1.1.1 | awk '/dev/ {print $5}')
+  trusted_ip=$(who am i | awk '{print $5}' | tr -d '()' || echo "")
 
-    iptables -F
-    iptables -X
+  iptables -F; iptables -X
+  iptables -A INPUT -p tcp --dport "$SSH_PORT" -s "$trusted_ip" -j ACCEPT
+  iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  iptables -A INPUT -i "$iface" ! -p tcp --dport "$SSH_PORT" -j NFQUEUE --queue-num 0
+  iptables -A OUTPUT -o "$iface" -j NFQUEUE --queue-num 0
+  iptables -A FORWARD -j NFQUEUE --queue-num 0
+  netfilter-persistent save
 
-    iptables -A INPUT -p tcp --dport $SSH_PORT -s $TRUSTED_SSH_IP -j ACCEPT
-    iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    iptables -A INPUT -i $INTERFACE ! -p tcp --dport $SSH_PORT -j NFQUEUE --queue-num 0
-    iptables -A OUTPUT -o $INTERFACE -j NFQUEUE --queue-num 0
-    iptables -A FORWARD -j NFQUEUE --queue-num 0
-
-    netfilter-persistent save
-
-    cat <<EOF | sudo tee /etc/systemd/system/suricata-ips.service > /dev/null
+  cat > /etc/systemd/system/suricata-ips.service <<EOF
 [Unit]
-Description=Suricata IPS Mode (NFQUEUE)
+Description=Suricata IPS (NFQUEUE)
 After=network.target
 
 [Service]
@@ -90,146 +116,106 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable suricata-ips
-    sudo systemctl start suricata-ips
+  systemctl daemon-reload
+  systemctl enable --now suricata-ips
 }
 
-function configure_fail2ban() {
-    echo -e "${YELLOW}[*] Configuring Fail2Ban for Suricata...${RESET}"
-    cat <<EOF | sudo tee /etc/fail2ban/filter.d/suricata.conf > /dev/null
+configure_fail2ban() {
+  log "Configuring Fail2Ban for Suricata..."
+  cat > /etc/fail2ban/filter.d/suricata.conf <<EOF
 [Definition]
-failregex = \[.*\] \[.*\] \[Classification: .*?\] \[Priority: [0-9]+\] \{.*?\} <HOST>
+failregex = \[.*\]\s+\[.*\]\s+\[Classification: .*?\]\s+\[Priority: [0-9]+\]\s+\{.*?\} <HOST>
 ignoreregex =
 EOF
-
-    cat <<EOF | sudo tee /etc/fail2ban/jail.d/suricata.local > /dev/null
+  cat > /etc/fail2ban/jail.d/suricata.local <<EOF
 [suricata]
-enabled  = true
-filter   = suricata
-action   = iptables[name=Suricata, port=any, protocol=all]
-logpath  = /var/log/suricata/fast.log
+enabled = true
+filter  = suricata
+action  = iptables[name=Suricata, port=any, protocol=all]
+logpath = /var/log/suricata/fast.log
 findtime = 300
 bantime = 600
 maxretry = 3
 EOF
-
-    sudo systemctl restart fail2ban
+  systemctl restart fail2ban
 }
 
-function fix_ntp_dns() {
-    echo -e "${YELLOW}[*] Fixing NTP and DNS resolution...${RESET}"
-    sudo sed -i '/^#?NTP=/c\NTP=pool.ntp.org' /etc/systemd/timesyncd.conf || true
-    sudo systemctl restart systemd-timesyncd
-    sudo timedatectl set-ntp true
+fix_ntp_dns() {
+  log "Ensuring NTP sync and DNS resolution..."
+  sed -ri 's/^#?NTP=.*/NTP=pool.ntp.org/' /etc/systemd/timesyncd.conf || true
+  systemctl restart systemd-timesyncd
+  timedatectl set-ntp true
 }
 
-function install_letsencrypt() {
-    echo -e "${YELLOW}[*] Installing Let's Encrypt (Certbot)...${RESET}"
-    sudo apt install certbot python3-certbot-nginx -y
-    echo -ne "${YELLOW}Enter your domain (e.g. example.com): ${RESET}"
-    read DOMAIN
-    echo -ne "${YELLOW}Enter your email address: ${RESET}"
-    read EMAIL
-    sudo certbot --nginx -d $DOMAIN --agree-tos -m $EMAIL --redirect --non-interactive
+install_certbot() {
+  [[ -z "$DOMAIN" || -z "$EMAIL" ]] && error "Domain and email must be provided for Let's Encrypt."
+  log "Obtaining SSL certificate for $DOMAIN..."
+  certbot --nginx -d "$DOMAIN" --agree-tos -m "$EMAIL" --redirect --non-interactive
 }
 
-function harden_portsentry() {
-    echo -e "${YELLOW}[*] Installing and hardening Portsentry...${RESET}"
-    sudo apt install portsentry -y
+extra_hardening() {
+  log "Configuring unattended upgrades, Portsentry, Rkhunter, ClamAV..."
+  dpkg-reconfigure -f noninteractive unattended-upgrades
 
-    sudo sed -i 's/TCP_MODE="tcp"/TCP_MODE="atcp"/' /etc/default/portsentry
-    sudo sed -i 's/UDP_MODE="udp"/UDP_MODE="audp"/' /etc/default/portsentry
+  sed -ri \
+    -e 's/^TCP_MODE="tcp"/TCP_MODE="atcp"/' \
+    -e 's/^UDP_MODE="udp"/UDP_MODE="audp"/' \
+    /etc/default/portsentry
+  sed -ri \
+    -e 's/^#?BLOCK_TCP=.*/BLOCK_TCP="1"/' \
+    -e 's/^#?BLOCK_UDP=.*/BLOCK_UDP="1"/' \
+    -e 's|^#?KILL_ROUTE=.*|KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"|' \
+    /etc/portsentry/portsentry.conf
+  systemctl restart portsentry
 
-    sudo sed -i 's/^#*BLOCK_UDP=.*/BLOCK_UDP="1"/' /etc/portsentry/portsentry.conf
-    sudo sed -i 's/^#*BLOCK_TCP=.*/BLOCK_TCP="1"/' /etc/portsentry/portsentry.conf
-    sudo sed -i 's|^#*KILL_ROUTE=.*|KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"|' /etc/portsentry/portsentry.conf
-
-    sudo systemctl restart portsentry
-    echo -e "${GREEN}[+] Portsentry is now in advanced blocking mode.${RESET}"
+  freshclam || warn "Freshclam update failed"
+  rkhunter --update || warn "Rkhunter update failed"
+  rkhunter --propupd || warn "Rkhunter property update failed"
+  rkhunter --check --sk || warn "Rkhunter scan incomplete"
 }
 
-function extra_hardening() {
-    echo -e "${YELLOW}[*] Installing Unattended Upgrades...${RESET}"
-    sudo apt install unattended-upgrades -y
-    sudo dpkg-reconfigure -f noninteractive unattended-upgrades
-
-    harden_portsentry
-
-    echo -e "${YELLOW}[*] Installing Rootkit Hunter and ClamAV...${RESET}"
-    sudo apt install rkhunter clamav -y
-    sudo systemctl stop clamav-freshclam || true
-    sudo freshclam || true
-    sudo systemctl start clamav-freshclam || true
-    sudo rkhunter --update || true
-    sudo rkhunter --propupd || true
-    sudo rkhunter --check --sk || true
+# === Menu & Main Loop ===
+menu() {
+  echo -e "\n${BLUE}🛡️  Ubuntu 24.04 Server Hardening Menu${RESET}"
+  echo -e "${BLUE}=========================================${RESET}"
+  echo -e "${GREEN}1)${RESET} Update system"
+  echo -e "${GREEN}2)${RESET} Configure SSH (port $SSH_PORT)"
+  echo -e "${GREEN}3)${RESET} Configure UFW"
+  echo -e "${GREEN}4)${RESET} Configure Suricata IPS"
+  echo -e "${GREEN}5)${RESET} Configure Fail2Ban"
+  echo -e "${GREEN}6)${RESET} Fix NTP & DNS"
+  echo -e "${GREEN}7)${RESET} Install/renew Let's Encrypt"
+  echo -e "${GREEN}8)${RESET} Extra Hardening"
+  echo -e "${GREEN}9)${RESET} Run ALL steps"
+  echo -e "${RED}0)${RESET} Exit"
+  echo -ne "\n${YELLOW}Choose an option: ${RESET}"
+  read -r choice
 }
 
-function show_status() {
-    echo -e "\n${BLUE}🔍 Checking system hardening status...${RESET}\n"
-
-    echo -e "${YELLOW}[*] UFW Firewall:${RESET}"
-    if command -v ufw &>/dev/null; then
-        sudo ufw status verbose
-    else
-        echo -e "${RED}UFW not installed${RESET}"
-    fi
-
-    echo -e "\n${YELLOW}[*] Fail2Ban:${RESET}"
-    if systemctl is-active --quiet fail2ban; then
-        sudo fail2ban-client status
-    else
-        echo -e "${RED}Fail2Ban not running${RESET}"
-    fi
-
-    echo -e "\n${YELLOW}[*] Suricata IPS:${RESET}"
-    if systemctl is-active --quiet suricata-ips; then
-        echo -e "${GREEN}Suricata IPS is running${RESET}"
-    else
-        echo -e "${RED}Suricata IPS is not active${RESET}"
-    fi
-
-    echo -e "\n${YELLOW}[*] Portsentry:${RESET}"
-    if systemctl is-active --quiet portsentry; then
-        echo -e "${GREEN}Portsentry is running${RESET}"
-    else
-        echo -e "${RED}Portsentry not active${RESET}"
-    fi
-
-    echo -e "\n${YELLOW}[*] ClamAV & Rkhunter:${RESET}"
-    if command -v clamscan &>/dev/null; then
-        echo -e "${GREEN}ClamAV is installed${RESET}"
-    else
-        echo -e "${RED}ClamAV not found${RESET}"
-    fi
-    if command -v rkhunter &>/dev/null; then
-        echo -e "${GREEN}Rkhunter is installed${RESET}"
-    else
-        echo -e "${RED}Rkhunter not found${RESET}"
-    fi
-
-    echo -e "\n${GREEN}✅ Status check complete.${RESET}\n"
-    read -p "Press Enter to return to the menu..."
-}
-
-# === LOOP === #
 while true; do
-    menu
-    case $choice in
-        1) change_ssh_port;;
-        2) configure_ufw;;
-        3) configure_suricata;;
-        4) configure_fail2ban;;
-        5) fix_ntp_dns;;
-        6) install_letsencrypt;;
-        7) update_system; change_ssh_port; configure_ufw; configure_suricata; configure_fail2ban; fix_ntp_dns;;
-        8) extra_hardening;;
-        9) show_status;;
-        0) echo -e "${RED}Exiting setup.${RESET}"; exit 0;;
-        *) echo -e "${RED}Invalid choice. Try again.${RESET}";;
-    esac
-    echo -e "\n${GREEN}✅ Operation complete. Returning to menu...${RESET}"
-    sleep 2
+  menu
+  case $choice in
+    1) update_system ;; 
+    2) configure_ssh ;; 
+    3) configure_ufw ;; 
+    4) configure_suricata ;; 
+    5) configure_fail2ban ;; 
+    6) fix_ntp_dns ;; 
+    7) install_certbot ;; 
+    8) extra_hardening ;; 
+    9)
+      confirm "Proceed with all hardening steps?"
+      update_system
+      configure_ssh
+      configure_ufw
+      configure_suricata
+      configure_fail2ban
+      fix_ntp_dns
+      install_certbot
+      extra_hardening ;; 
+    0) log "Exiting."; exit 0 ;;
+    *) warn "Invalid choice, try again." ;; 
+  esac
+  echo -e "\n${GREEN}✅ Operation complete. Returning to menu...${RESET}"
+  sleep 1
 done
