@@ -248,12 +248,13 @@ menu() {
   echo -e "${GREEN} 5)${RESET} Configure Fail2Ban"
   echo -e "${GREEN} 6)${RESET} Fix NTP & DNS"
   echo -e "${GREEN} 7)${RESET} Install/renew Let's Encrypt"
-  echo -e "${GREEN} 8)${RESET} Extra Hardening
-10) View Logs
-11) View iptables
-12) Run Lynis Audit
-13) Run ALL steps
-${RED}0)${RESET} Exit"
+  echo -e "${GREEN} 8)${RESET} Extra Hardening"
+  echo -e "${GREEN} 9)${RESET} Show Status"
+  echo -e "${GREEN}10)${RESET} View Logs"
+  echo -e "${GREEN}11)${RESET} View iptables"
+  echo -e "${GREEN}12)${RESET} Run Lynis Audit"
+  echo -e "${GREEN}13)${RESET} Run ALL steps"
+  echo -e "${RED} 0)${RESET} Exit"
   echo -ne "
 ${YELLOW}Choose an option: ${RESET}"
   read -r choice
