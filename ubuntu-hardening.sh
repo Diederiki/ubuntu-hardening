@@ -178,6 +178,8 @@ show_status() {
   echo -n -e "\n${BLUE}Portsentry:${RESET} "; systemctl is-active --quiet portsentry && echo -e "${GREEN}Active${RESET}" || echo -e "${RED}Inactive${RESET}"
   echo -n -e "\n${BLUE}ClamAV:${RESET} "; command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
   echo -n -e "\n${BLUE}Rkhunter:${RESET} "; command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
+  # Pause to allow user to review
+  read -r -p "\nPress Enter to return to menu..."
 }
 
 # === New Helpers ===
@@ -197,8 +199,7 @@ view_iptables() {
 # === Improved Menu UI ===
 draw_box() {
   local w=50
-  printf "${MAGENTA}%${w}s
-" | tr ' ' '='
+  printf "${MAGENTA}%${w}s\n" | tr ' ' '='
   printf "${MAGENTA}|${RESET}%*s${MAGENTA}|\n" $((w-2)) " $1 "
   printf "${MAGENTA}%${w}s\n${RESET}" | tr ' ' '='
 }
@@ -219,8 +220,7 @@ menu() {
   echo -e "${GREEN}11)${RESET} View iptables"
   echo -e "${GREEN}12)${RESET} Run ALL steps"
   echo -e "${RED} 0)${RESET} Exit"
-  echo -ne "
-${BOLD}Choose an option: ${RESET}"
+  echo -ne "\n${BOLD}Choose an option: ${RESET}"
   read -r choice
 }
 
