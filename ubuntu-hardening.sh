@@ -70,11 +70,7 @@ configure_ssh() {
   echo "Port $SSH_PORT" >> /etc/ssh/sshd_config
   sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
   log "Restarting SSH service..."
-  if systemctl list-units --type=service | grep -q 'sshd.service'; then
-    systemctl restart sshd
-  else
-    systemctl restart ssh
-  fi
+  systemctl restart ssh
 }
 
 configure_ufw() {
@@ -173,14 +169,48 @@ extra_hardening() {
 
 show_status() {
   log "Checking service status..."
-  echo -e "\n${BLUE}UFW:${RESET}"; ufw status verbose
-  echo -e "\n${BLUE}SSH (sshd):${RESET}"; systemctl is-active sshd && echo "Active" || echo "Inactive"
-  echo -e "\n${BLUE}Suricata IPS:${RESET}"; systemctl is-active suricata-ips && echo "Active" || echo "Inactive"
-  echo -e "\n${BLUE}Fail2Ban:${RESET}"; systemctl is-active fail2ban && echo "Active" || echo "Inactive"
-  echo -e "\n${BLUE}Portsentry:${RESET}"; systemctl is-active portsentry && echo "Active" || echo "Inactive"
-  echo -e "\n${BLUE}ClamAV & Rkhunter installed?${RESET}"; 
-  command -v clamscan &>/dev/null && echo "ClamAV OK" || echo "ClamAV missing"; 
-  command -v rkhunter &>/dev/null && echo "Rkhunter OK" || echo "Rkhunter missing"
+
+  # UFW
+  echo -e "\n${BLUE}UFW:${RESET}"
+  ufw status verbose
+
+  # SSH
+  echo -n -e "\n${BLUE}SSH:${RESET} "
+  if systemctl is-active --quiet ssh; then
+    echo -e "${GREEN}Active${RESET}"
+  else
+    echo -e "${RED}Inactive${RESET}"
+  fi
+
+  # Suricata IPS
+  echo -n -e "\n${BLUE}Suricata IPS:${RESET} "
+  if systemctl is-active --quiet suricata-ips; then
+    echo -e "${GREEN}Active${RESET}"
+  else
+    echo -e "${RED}Inactive${RESET}"
+  fi
+
+  # Fail2Ban
+  echo -n -e "\n${BLUE}Fail2Ban:${RESET} "
+  if systemctl is-active --quiet fail2ban; then
+    echo -e "${GREEN}Active${RESET}"
+  else
+    echo -e "${RED}Inactive${RESET}"
+  fi
+
+  # Portsentry
+  echo -n -e "\n${BLUE}Portsentry:${RESET} "
+  if systemctl is-active --quiet portsentry; then
+    echo -e "${GREEN}Active${RESET}"
+  else
+    echo -e "${RED}Inactive${RESET}"
+  fi
+
+  # ClamAV & Rkhunter
+  echo -n -e "\n${BLUE}ClamAV:${RESET} "
+  command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
+  echo -n -e "\n${BLUE}Rkhunter:${RESET} "
+  command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
 }
 
 # === Menu & Main Loop ===
@@ -198,7 +228,8 @@ menu() {
   echo -e "${GREEN}9)${RESET} Show Status"
   echo -e "${GREEN}10)${RESET} Run ALL steps"
   echo -e "${RED}0)${RESET} Exit"
-  echo -ne "\n${YELLOW}Choose an option: ${RESET}"
+  echo -ne "
+${YELLOW}Choose an option: ${RESET}"
   read -r choice
 }
 
