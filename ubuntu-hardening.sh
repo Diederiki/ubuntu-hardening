@@ -24,6 +24,7 @@ function menu() {
     echo -e "${GREEN}6)${RESET} Install Let's Encrypt for Apache/Nginx"
     echo -e "${GREEN}7)${RESET} Run ALL steps"
     echo -e "${GREEN}8)${RESET} Extra Hardening: Unattended Updates, PortSentry, Rootkit/AV"
+    echo -e "${GREEN}9)${RESET} Show system hardening status"
     echo -e "${RED}0) Exit${RESET}"
     echo -ne "\n${YELLOW}Choose an option: ${RESET}"
     read choice
@@ -37,13 +38,17 @@ function update_system() {
 
 function change_ssh_port() {
     echo -e "${YELLOW}[*] Changing SSH port to 3022...${RESET}"
-    if ! command -v ufw &> /dev/null; then
+    if ! command -v ufw &>/dev/null; then
         echo -e "${YELLOW}[!] UFW not found. Installing ufw...${RESET}"
         sudo apt update && sudo apt install -y ufw && sudo ufw --force enable
     fi
     sudo ufw allow 3022/tcp
     sudo sed -i 's/^#Port 22/Port 3022/;s/^Port 22/Port 3022/' /etc/ssh/sshd_config
-    sudo systemctl restart ssh
+    if systemctl list-units --type=service | grep -q 'sshd.service'; then
+        sudo systemctl restart sshd
+    else
+        sudo systemctl restart ssh
+    fi
 }
 
 function configure_ufw() {
@@ -151,6 +156,53 @@ function extra_hardening() {
     sudo rkhunter --check --sk
 }
 
+function show_status() {
+    echo -e "\n${BLUE}🔍 Checking system hardening status...${RESET}\n"
+
+    echo -e "${YELLOW}[*] UFW Firewall:${RESET}"
+    if command -v ufw &>/dev/null; then
+        sudo ufw status verbose
+    else
+        echo -e "${RED}UFW not installed${RESET}"
+    fi
+
+    echo -e "\n${YELLOW}[*] Fail2Ban:${RESET}"
+    if systemctl is-active --quiet fail2ban; then
+        sudo fail2ban-client status
+    else
+        echo -e "${RED}Fail2Ban not running${RESET}"
+    fi
+
+    echo -e "\n${YELLOW}[*] Suricata IPS:${RESET}"
+    if systemctl is-active --quiet suricata-ips; then
+        echo -e "${GREEN}Suricata IPS is running${RESET}"
+    else
+        echo -e "${RED}Suricata IPS is not active${RESET}"
+    fi
+
+    echo -e "\n${YELLOW}[*] Portsentry:${RESET}"
+    if systemctl is-active --quiet portsentry; then
+        echo -e "${GREEN}Portsentry is running${RESET}"
+    else
+        echo -e "${RED}Portsentry not active${RESET}"
+    fi
+
+    echo -e "\n${YELLOW}[*] ClamAV & Rkhunter:${RESET}"
+    if command -v clamscan &>/dev/null; then
+        echo -e "${GREEN}ClamAV is installed${RESET}"
+    else
+        echo -e "${RED}ClamAV not found${RESET}"
+    fi
+    if command -v rkhunter &>/dev/null; then
+        echo -e "${GREEN}Rkhunter is installed${RESET}"
+    else
+        echo -e "${RED}Rkhunter not found${RESET}"
+    fi
+
+    echo -e "\n${GREEN}✅ Status check complete.${RESET}\n"
+    read -p "Press Enter to return to the menu..."
+}
+
 # === LOOP === #
 while true; do
     menu
@@ -163,6 +215,7 @@ while true; do
         6) install_letsencrypt;;
         7) update_system; change_ssh_port; configure_ufw; configure_suricata; configure_fail2ban; fix_ntp_dns;;
         8) extra_hardening;;
+        9) show_status;;
         0) echo -e "${RED}Exiting setup.${RESET}"; exit 0;;
         *) echo -e "${RED}Invalid choice. Try again.${RESET}";;
     esac
