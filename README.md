@@ -21,7 +21,7 @@ This interactive, colorful Bash script secures your Ubuntu system with a one-sto
   - Rootkit Hunter and ClamAV
 - System-wide status check for all services
 - Fully interactive menu-based UI with color output
-- 
+  
 
 🚀 Quick Start
 
