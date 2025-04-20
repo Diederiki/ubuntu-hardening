@@ -63,7 +63,7 @@ update_system() {
   apt update && apt upgrade -y
   apt install -y ufw fail2ban suricata netfilter-persistent \
     curl jq software-properties-common certbot python3-certbot-nginx \
-    unattended-upgrades portsentry rkhunter clamav lynis
+    unattended-upgrades portsentry rkhunter clamav
 }
 
 configure_ssh() {
@@ -171,43 +171,13 @@ extra_hardening() {
 
 show_status() {
   log "Checking service status..."
-
-  echo -n -e "\n${BLUE}UFW:${RESET} "
-  ufw status verbose
-
-  echo -n -e "\n${BLUE}SSH:${RESET} "
-  if systemctl is-active --quiet ssh; then
-    echo -e "${GREEN}Active${RESET}"
-  else
-    echo -e "${RED}Inactive${RESET}"
-  fi
-
-  echo -n -e "\n${BLUE}Suricata IPS:${RESET} "
-  if systemctl is-active --quiet suricata-ips; then
-    echo -e "${GREEN}Active${RESET}"
-  else
-    echo -e "${RED}Inactive${RESET}"
-  fi
-
-  echo -n -e "\n${BLUE}Fail2Ban:${RESET} "
-  if systemctl is-active --quiet fail2ban; then
-    echo -e "${GREEN}Active${RESET}"
-  else
-    echo -e "${RED}Inactive${RESET}"
-  fi
-
-  echo -n -e "\n${BLUE}Portsentry:${RESET} "
-  if systemctl is-active --quiet portsentry; then
-    echo -e "${GREEN}Active${RESET}"
-  else
-    echo -e "${RED}Inactive${RESET}"
-  fi
-
-  echo -n -e "\n${BLUE}ClamAV:${RESET} "
-  command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
-
-  echo -n -e "\n${BLUE}Rkhunter:${RESET} "
-  command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
+  echo -n -e "\n${BLUE}UFW:${RESET} "; ufw status verbose
+  echo -n -e "\n${BLUE}SSH:${RESET} "; systemctl is-active --quiet ssh && echo -e "${GREEN}Active${RESET}" || echo -e "${RED}Inactive${RESET}"
+  echo -n -e "\n${BLUE}Suricata IPS:${RESET} "; systemctl is-active --quiet suricata-ips && echo -e "${GREEN}Active${RESET}" || echo -e "${RED}Inactive${RESET}"
+  echo -n -e "\n${BLUE}Fail2Ban:${RESET} "; systemctl is-active --quiet fail2ban && echo -e "${GREEN}Active${RESET}" || echo -e "${RED}Inactive${RESET}"
+  echo -n -e "\n${BLUE}Portsentry:${RESET} "; systemctl is-active --quiet portsentry && echo -e "${GREEN}Active${RESET}" || echo -e "${RED}Inactive${RESET}"
+  echo -n -e "\n${BLUE}ClamAV:${RESET} "; command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
+  echo -n -e "\n${BLUE}Rkhunter:${RESET} "; command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
 }
 
 # === New Helpers ===
@@ -224,18 +194,13 @@ view_iptables() {
   read -r -p "Press Enter to continue..."
 }
 
-run_lynis() {
-  log "Running Lynis security audit..."
-  lynis audit system
-  read -r -p "Audit complete. Press Enter to continue..."
-}
-
 # === Improved Menu UI ===
 draw_box() {
   local w=50
-  printf "${BLUE}%${w}s\n" | tr ' ' '='
-  printf "${BLUE}|${RESET}%*s${BLUE}|\n" $((w-2)) " $1 "
-  printf "${BLUE}%${w}s\n${RESET}" | tr ' ' '='
+  printf "${MAGENTA}%${w}s
+" | tr ' ' '='
+  printf "${MAGENTA}|${RESET}%*s${MAGENTA}|\n" $((w-2)) " $1 "
+  printf "${MAGENTA}%${w}s\n${RESET}" | tr ' ' '='
 }
 
 menu() {
@@ -252,11 +217,9 @@ menu() {
   echo -e "${GREEN} 9)${RESET} Show Status"
   echo -e "${GREEN}10)${RESET} View Logs"
   echo -e "${GREEN}11)${RESET} View iptables"
-  echo -e "${GREEN}12)${RESET} Run Lynis Audit"
-  echo -e "${GREEN}13)${RESET} Run ALL steps"
+  echo -e "${GREEN}12)${RESET} Run ALL steps"
   echo -e "${RED} 0)${RESET} Exit"
-  echo -ne "
-${YELLOW}Choose an option: ${RESET}"
+  echo -ne "\n${BOLD}Choose an option: ${RESET}"
   read -r choice
 }
 
@@ -275,8 +238,7 @@ while true; do
     9) show_status ;; 
     10) view_logs "ssh" ;; 
     11) view_iptables ;; 
-    12) run_lynis ;; 
-    13)
+    12)
       confirm "Proceed with all hardening steps?"
       update_system; configure_ssh; configure_ufw; configure_suricata; \
       configure_fail2ban; fix_ntp_dns; install_certbot; extra_hardening ;; 
