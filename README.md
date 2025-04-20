@@ -1,3 +1,6 @@
+![image](https://github.com/user-attachments/assets/f2bc2f99-402f-4646-a09a-ba72ba69a541)
+
+
 🛡️ Ubuntu 24.04 Server Hardening Toolkit
 
 An interactive, all-in-one Bash script for securing fresh Ubuntu 24.04 VPS deployments.**  
