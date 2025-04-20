@@ -219,7 +219,8 @@ menu() {
   echo -e "${GREEN}11)${RESET} View iptables"
   echo -e "${GREEN}12)${RESET} Run ALL steps"
   echo -e "${RED} 0)${RESET} Exit"
-  echo -ne "\n${BOLD}Choose an option: ${RESET}"
+  echo -ne "
+${BOLD}Choose an option: ${RESET}"
   read -r choice
 }
 
