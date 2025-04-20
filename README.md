@@ -32,7 +32,9 @@ sudo curl -sSL https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main
 
 sudo chmod +x ubuntu-hardening.sh
 
+
 sudo ./ubuntu-hardening.sh
+
 
 
 
