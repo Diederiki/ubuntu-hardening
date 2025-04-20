@@ -37,6 +37,7 @@ function update_system() {
 
 function change_ssh_port() {
     echo -e "${YELLOW}[*] Changing SSH port to 3022...${RESET}"
+    sudo ufw allow 3022/tcp
     sudo sed -i 's/^#Port 22/Port 3022/;s/^Port 22/Port 3022/' /etc/ssh/sshd_config
     sudo systemctl restart sshd
 }
@@ -150,7 +151,7 @@ function extra_hardening() {
 while true; do
     menu
     case $choice in
-        1) update_system; change_ssh_port;;
+        1) change_ssh_port;;
         2) configure_ufw;;
         3) configure_suricata;;
         4) configure_fail2ban;;
