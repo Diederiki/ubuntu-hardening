@@ -206,7 +206,7 @@ draw_box() {
 
 menu() {
   clear
-  draw_box "Ubuntu 24.04 Server Hardening"
+  draw_box "Ubuntu Server Hardening"
   echo -e "${GREEN} 1)${RESET} Update system"
   echo -e "${GREEN} 2)${RESET} Update SSH port from 22 to 3022"
   echo -e "${GREEN} 3)${RESET} Configure UFW firewall"
@@ -214,7 +214,7 @@ menu() {
   echo -e "${GREEN} 5)${RESET} Configure Fail2Ban"
   echo -e "${GREEN} 6)${RESET} Fix NTP & DNS resolution"
   echo -e "${GREEN} 7)${RESET} Install/renew Let's Encrypt for Apache/Nginx"
-  echo -e "${GREEN} 8)${RESET} Extra Hardening - ClamAV - PortSentry - Rootkit/AV "
+  echo -e "${GREEN} 8)${RESET} Extra Hardening - ClamAV - PortSentry - Rootkit Hunter "
   echo -e "${GREEN} 9)${RESET} Show system hardening Status"
   echo -e "${GREEN}10)${RESET} View Logs"
   echo -e "${GREEN}11)${RESET} View iptables"
