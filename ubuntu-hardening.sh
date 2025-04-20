@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Improved Ubuntu 24.04 Server Hardening Script (Interactive Edition)
+# Enhanced Ubuntu 24.04 Server Hardening Script (Interactive Edition)
 # Author: ChatGPT
 
 set -euo pipefail
@@ -18,10 +18,13 @@ GREEN="\e[1;32m"
 RED="\e[1;31m"
 YELLOW="\e[1;33m"
 BLUE="\e[1;34m"
+CYAN="\e[1;36m"
+MAGENTA="\e[1;35m"
+BOLD="\e[1m"
 RESET="\e[0m"
 
 # === Logging ===
-log()   { echo -e "${BLUE}[INFO]${RESET} $*"; }
+log()   { echo -e "${CYAN}[INFO]${RESET} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${RESET} $*"; }
 error() { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
 
@@ -60,7 +63,7 @@ update_system() {
   apt update && apt upgrade -y
   apt install -y ufw fail2ban suricata netfilter-persistent \
     curl jq software-properties-common certbot python3-certbot-nginx \
-    unattended-upgrades portsentry rkhunter clamav
+    unattended-upgrades portsentry rkhunter clamav lynis
 }
 
 configure_ssh() {
@@ -69,7 +72,6 @@ configure_ssh() {
   sed -ri '/^\s*Port\s+[0-9]+/d' /etc/ssh/sshd_config
   echo "Port $SSH_PORT" >> /etc/ssh/sshd_config
   sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
-  log "Restarting SSH service..."
   systemctl restart ssh
 }
 
@@ -170,11 +172,9 @@ extra_hardening() {
 show_status() {
   log "Checking service status..."
 
-  # UFW
-  echo -e "\n${BLUE}UFW:${RESET}"
+  echo -n -e "\n${BLUE}UFW:${RESET} "
   ufw status verbose
 
-  # SSH
   echo -n -e "\n${BLUE}SSH:${RESET} "
   if systemctl is-active --quiet ssh; then
     echo -e "${GREEN}Active${RESET}"
@@ -182,7 +182,6 @@ show_status() {
     echo -e "${RED}Inactive${RESET}"
   fi
 
-  # Suricata IPS
   echo -n -e "\n${BLUE}Suricata IPS:${RESET} "
   if systemctl is-active --quiet suricata-ips; then
     echo -e "${GREEN}Active${RESET}"
@@ -190,7 +189,6 @@ show_status() {
     echo -e "${RED}Inactive${RESET}"
   fi
 
-  # Fail2Ban
   echo -n -e "\n${BLUE}Fail2Ban:${RESET} "
   if systemctl is-active --quiet fail2ban; then
     echo -e "${GREEN}Active${RESET}"
@@ -198,7 +196,6 @@ show_status() {
     echo -e "${RED}Inactive${RESET}"
   fi
 
-  # Portsentry
   echo -n -e "\n${BLUE}Portsentry:${RESET} "
   if systemctl is-active --quiet portsentry; then
     echo -e "${GREEN}Active${RESET}"
@@ -206,33 +203,63 @@ show_status() {
     echo -e "${RED}Inactive${RESET}"
   fi
 
-  # ClamAV & Rkhunter
   echo -n -e "\n${BLUE}ClamAV:${RESET} "
   command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
+
   echo -n -e "\n${BLUE}Rkhunter:${RESET} "
   command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
 }
 
-# === Menu & Main Loop ===
+# === New Helpers ===
+view_logs() {
+  local srv=$1
+  log "Showing last 20 lines of ${srv} logs:"
+  journalctl -u "${srv}" -n 20 --no-pager
+  read -r -p "Press Enter to continue..."
+}
+
+view_iptables() {
+  log "Current iptables rules:"
+  iptables -L -n -v
+  read -r -p "Press Enter to continue..."
+}
+
+run_lynis() {
+  log "Running Lynis security audit..."
+  lynis audit system
+  read -r -p "Audit complete. Press Enter to continue..."
+}
+
+# === Improved Menu UI ===
+draw_box() {
+  local w=50
+  printf "${BLUE}%${w}s\n" | tr ' ' '='
+  printf "${BLUE}|${RESET}%*s${BLUE}|\n" $((w-2)) " $1 "
+  printf "${BLUE}%${w}s\n${RESET}" | tr ' ' '='
+}
+
 menu() {
-  echo -e "\n${BLUE}🛡️  Ubuntu 24.04 Server Hardening Menu${RESET}"
-  echo -e "${BLUE}=========================================${RESET}"
-  echo -e "${GREEN}1)${RESET} Update system"
-  echo -e "${GREEN}2)${RESET} Configure SSH (port $SSH_PORT)"
-  echo -e "${GREEN}3)${RESET} Configure UFW"
-  echo -e "${GREEN}4)${RESET} Configure Suricata IPS"
-  echo -e "${GREEN}5)${RESET} Configure Fail2Ban"
-  echo -e "${GREEN}6)${RESET} Fix NTP & DNS"
-  echo -e "${GREEN}7)${RESET} Install/renew Let's Encrypt"
-  echo -e "${GREEN}8)${RESET} Extra Hardening"
-  echo -e "${GREEN}9)${RESET} Show Status"
-  echo -e "${GREEN}10)${RESET} Run ALL steps"
-  echo -e "${RED}0)${RESET} Exit"
+  clear
+  draw_box "Ubuntu 24.04 Server Hardening"
+  echo -e "${GREEN} 1)${RESET} Update system"
+  echo -e "${GREEN} 2)${RESET} Configure SSH"
+  echo -e "${GREEN} 3)${RESET} Configure UFW"
+  echo -e "${GREEN} 4)${RESET} Configure Suricata IPS"
+  echo -e "${GREEN} 5)${RESET} Configure Fail2Ban"
+  echo -e "${GREEN} 6)${RESET} Fix NTP & DNS"
+  echo -e "${GREEN} 7)${RESET} Install/renew Let's Encrypt"
+  echo -e "${GREEN} 8)${RESET} Extra Hardening
+10) View Logs
+11) View iptables
+12) Run Lynis Audit
+13) Run ALL steps
+${RED}0)${RESET} Exit"
   echo -ne "
 ${YELLOW}Choose an option: ${RESET}"
   read -r choice
 }
 
+# === Main Loop ===
 while true; do
   menu
   case $choice in
@@ -245,19 +272,16 @@ while true; do
     7) install_certbot ;; 
     8) extra_hardening ;; 
     9) show_status ;; 
-    10)
+    10) view_logs "ssh" ;; 
+    11) view_iptables ;; 
+    12) run_lynis ;; 
+    13)
       confirm "Proceed with all hardening steps?"
-      update_system
-      configure_ssh
-      configure_ufw
-      configure_suricata
-      configure_fail2ban
-      fix_ntp_dns
-      install_certbot
-      extra_hardening ;; 
-    0) log "Exiting."; exit 0 ;;
+      update_system; configure_ssh; configure_ufw; configure_suricata; \
+      configure_fail2ban; fix_ntp_dns; install_certbot; extra_hardening ;; 
+    0) log "Exiting."; exit 0 ;; 
     *) warn "Invalid choice, try again." ;; 
   esac
-  echo -e "\n${GREEN}✅ Operation complete. Returning to menu...${RESET}"
+  echo -e "\n${GREEN}✅ Done. Returning to menu...${RESET}"
   sleep 1
 done
