@@ -2,7 +2,9 @@
 
 This interactive, colorful Bash script secures your Ubuntu VPS with a one-stop menu of powerful tools including firewall configuration, IPS/IDS, Fail2Ban integration, rootkit scanners, Let's Encrypt support, and more.
 
+
 ✨ Features
+
 
 - Change default SSH port to avoid brute-force attacks
 - Configure UFW with sensible defaults
@@ -16,15 +18,19 @@ This interactive, colorful Bash script secures your Ubuntu VPS with a one-stop m
   - Rootkit Hunter and ClamAV
 - System-wide status check for all services
 - Fully interactive menu-based UI with color output
+- 
 
 🚀 Quick Start
+
 
 ```bash
 sudo curl -sSL https://raw.githubusercontent.com/YourUsername/ubuntu-hardening/main/ubuntu-hardening.sh | bash
 ```
 
+
 > ⚠️ Recommended to test on a fresh Ubuntu 24.04
 > Compatible with Ubuntu 20.04 / 22.04 / 24.04
+
 
 ---
 
