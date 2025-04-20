@@ -1,4 +1,5 @@
-![image](https://github.com/user-attachments/assets/2ed41b25-7161-4308-9757-4d69400ce964)
+![image](https://github.com/user-attachments/assets/b819b14f-da3f-46fa-a88b-393dfd701dbc)
+
 
 
 🛡️ Ultimate Ubuntu 24.04 Server Hardening Script
