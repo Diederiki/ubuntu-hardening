@@ -32,7 +32,7 @@ function menu() {
 function update_system() {
     echo -e "${YELLOW}[*] Updating system and installing dependencies...${RESET}"
     sudo apt update && sudo apt upgrade -y
-    sudo apt install -y ufw fail2ban suricata iptables-persistent curl jq software-properties-common
+    sudo apt install -y ufw fail2ban suricata netfilter-persistent curl jq software-properties-common
 }
 
 function change_ssh_port() {
@@ -138,7 +138,9 @@ function extra_hardening() {
 
     echo -e "${YELLOW}[*] Installing Rootkit Hunter and ClamAV...${RESET}"
     sudo apt install rkhunter clamav -y
+    sudo systemctl stop clamav-freshclam
     sudo freshclam
+    sudo systemctl start clamav-freshclam
     sudo rkhunter --update
     sudo rkhunter --propupd
     sudo rkhunter --check --sk
