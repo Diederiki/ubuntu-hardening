@@ -27,7 +27,7 @@ This interactive, colorful Bash script secures your Ubuntu system with a one-sto
 
 
 ```bash
-sudo curl -sSL https://raw.githubusercontent.com/YourUsername/ubuntu-hardening/main/ubuntu-hardening.sh | bash
+sudo curl -sSL https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh | bash
 ```
 
 
