@@ -30,6 +30,11 @@ This interactive, colorful Bash script secures your Ubuntu system with a one-sto
 sudo curl -sSL https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh | bash
 ```
 
+sudo chmod +x ubuntu-hardening.sh
+
+sudo ./ubuntu-hardening.sh
+
+
 
 > ⚠️ Recommended to test on a fresh Ubuntu 24.04
 > Compatible with Ubuntu 20.04 / 22.04 / 24.04
