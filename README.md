@@ -1,71 +1,80 @@
-![image](https://github.com/user-attachments/assets/f2bc2f99-402f-4646-a09a-ba72ba69a541)
+---
 
+```markdown
+# 🛡️ Ultimate Ubuntu 24.04 Server Hardening Script
 
-🛡️ Ubuntu 24.04 Server Hardening Toolkit
+This interactive, colorful Bash script secures your Ubuntu VPS with a one-stop menu of powerful tools including firewall configuration, IPS/IDS, Fail2Ban integration, rootkit scanners, Let's Encrypt support, and more.
 
-An interactive, all-in-one Bash script for securing fresh Ubuntu 24.04 VPS deployments.**  
-Includes real-world best practices and tools to harden your server in minutes — no experience needed.
+✨ Features
+
+- Change default SSH port to avoid brute-force attacks
+- Configure UFW with sensible defaults
+- Install & configure Suricata in IPS (NFQUEUE) mode
+- Fail2Ban integration with Suricata alerts
+- Auto-fix NTP and DNS resolution issues
+- Let’s Encrypt certificate provisioning for Apache/Nginx
+- Harden with:
+  - Unattended security updates
+  - Portsentry active scan protection (advanced stealth mode)
+  - Rootkit Hunter and ClamAV
+- System-wide status check for all services
+- Fully interactive menu-based UI with color output
+
+🚀 Quick Start
+
+```bash
+sudo curl -sSL https://raw.githubusercontent.com/YourUsername/ubuntu-hardening/main/ubuntu-hardening.sh | bash
+```
+
+> ⚠️ Recommended to test on a fresh Ubuntu 24.04
+> Compatible with Ubuntu 20.04 / 22.04 / 24.04
 
 ---
 
-🚀 Features
+📋 Menu Options
 
-✅ UFW Firewall setup  
-🔒 SSH hardening (moves SSH to port `3022`)  
-🛡️ Suricata IDS/IPS (NFQUEUE inline mode)  
-🚫 Fail2Ban integration for Suricata alerts  
-🔄 Unattended Security Updates  
-🛰️ Port scan detection with PortSentry  
-🧪 Rootkit and malware detection (rkhunter + ClamAV)  
-🔐 Optional Let's Encrypt SSL (for Apache/Nginx)  
-🎨 Color-coded, interactive terminal menu  
-
----
-
-📦 Installation
-
-curl -O https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh
-
-chmod +x ubuntu-hardening.sh
-
-sudo ./ubuntu-hardening.sh
-
-> ⚠️ You’ll need `sudo` access — recommended to run on a fresh Ubuntu 24.04 VPS.
+```
+1) Change SSH Port to 3022
+2) Configure UFW (firewall)
+3) Install and configure Suricata IPS
+4) Install and configure Fail2Ban
+5) Fix NTP and DNS resolution
+6) Install Let's Encrypt for Apache/Nginx
+7) Run ALL steps
+8) Extra Hardening: Unattended Updates, PortSentry, Rootkit/AV
+9) Show system hardening status
+0) Exit
+```
 
 ---
 
-📜 Menu Options
+📦 What’s Installed
 
-| Option | Description                                              |
-|--------|----------------------------------------------------------|
-| 1      | Change SSH port to 3022                                  |
-| 2      | Configure UFW firewall                                   |
-| 3      | Install + configure Suricata (IPS mode via NFQUEUE)     |
-| 4      | Install + configure Fail2Ban (Suricata log monitoring)   |
-| 5      | Fix NTP and DNS issues                                   |
-| 6      | Install Let's Encrypt (Certbot for Nginx)                |
-| 7      | Run all steps (full secure install)                      |
-| 8      | Bonus hardening (auto updates, port scan detect, AV)     |
-| 0      | Exit                                                     |
-
----
-
-🔐 What This Protects You From
-
-- Common brute-force SSH attacks  
-- Unauthorized port scans & probing  
-- Basic malware and rootkit infections  
-- Known network exploits detected by Suricata  
-- Misconfigured or forgotten firewall rules  
+| Tool         | Purpose                              |
+|--------------|--------------------------------------|
+| `ufw`        | Host-based firewall                  |
+| `suricata`   | Intrusion prevention (IPS) engine    |
+| `fail2ban`   | Log-based banning system             |
+| `portsentry` | Port-scan detector and blocker       |
+| `rkhunter`   | Rootkit scanner                      |
+| `clamav`     | Antivirus scanner                    |
+| `certbot`    | SSL/TLS certificates via Let’s Encrypt |
+| `unattended-upgrades` | Auto-install security patches |
 
 ---
 
-📁 Files
+💡 Tips
 
-| File            | Purpose                             |
-|-----------------|-------------------------------------|
-| `vps-harden.sh` | Main interactive script             |
-| `README.md`     | This readme                         |
+- SSH will move to port `3022`. Don’t forget to allow it in your client:
+  ```bash
+  ssh -p 3022 user@your-server-ip
+  ```
+- Review logs at:
+  - `/var/log/suricata/fast.log`
+  - `/var/log/fail2ban.log`
+  - `/var/log/clamav/`
+- Portsentry blocks show up in:
+  - `/var/lib/portsentry/portsentry.blocked.*`
 
 ---
 
