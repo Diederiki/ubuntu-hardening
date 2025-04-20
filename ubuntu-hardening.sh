@@ -39,7 +39,7 @@ function change_ssh_port() {
     echo -e "${YELLOW}[*] Changing SSH port to 3022...${RESET}"
     if ! command -v ufw &> /dev/null; then
         echo -e "${YELLOW}[!] UFW not found. Installing ufw...${RESET}"
-        sudo apt update && sudo apt install -y ufw
+        sudo apt update && sudo apt install -y ufw && sudo ufw --force enable
     fi
     sudo ufw allow 3022/tcp
     sudo sed -i 's/^#Port 22/Port 3022/;s/^Port 22/Port 3022/' /etc/ssh/sshd_config
