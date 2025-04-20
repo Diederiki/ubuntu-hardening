@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Ultimate Ubuntu 24.04 Server Hardening Script (Interactive Edition with Colors)
-# Author: ChatGPT x You ⚔️
+# Author: Diederiki
 
 set -e
 
@@ -135,25 +135,36 @@ function install_letsencrypt() {
     sudo certbot --nginx -d $DOMAIN --agree-tos -m $EMAIL --redirect --non-interactive
 }
 
+function harden_portsentry() {
+    echo -e "${YELLOW}[*] Installing and hardening Portsentry...${RESET}"
+    sudo apt install portsentry -y
+
+    sudo sed -i 's/TCP_MODE="tcp"/TCP_MODE="atcp"/' /etc/default/portsentry
+    sudo sed -i 's/UDP_MODE="udp"/UDP_MODE="audp"/' /etc/default/portsentry
+
+    sudo sed -i 's/^#*BLOCK_UDP=.*/BLOCK_UDP="1"/' /etc/portsentry/portsentry.conf
+    sudo sed -i 's/^#*BLOCK_TCP=.*/BLOCK_TCP="1"/' /etc/portsentry/portsentry.conf
+    sudo sed -i 's|^#*KILL_ROUTE=.*|KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"|' /etc/portsentry/portsentry.conf
+
+    sudo systemctl restart portsentry
+    echo -e "${GREEN}[+] Portsentry is now in advanced blocking mode.${RESET}"
+}
+
 function extra_hardening() {
     echo -e "${YELLOW}[*] Installing Unattended Upgrades...${RESET}"
     sudo apt install unattended-upgrades -y
     sudo dpkg-reconfigure -f noninteractive unattended-upgrades
 
-    echo -e "${YELLOW}[*] Installing PortSentry for port scan detection...${RESET}"
-    sudo apt install portsentry -y
-    sudo sed -i 's/TCP_MODE="tcp"/TCP_MODE="atcp"/' /etc/default/portsentry
-    sudo sed -i 's/UDP_MODE="udp"/UDP_MODE="audp"/' /etc/default/portsentry
-    sudo systemctl enable portsentry --now
+    harden_portsentry
 
     echo -e "${YELLOW}[*] Installing Rootkit Hunter and ClamAV...${RESET}"
     sudo apt install rkhunter clamav -y
-    sudo systemctl stop clamav-freshclam
-    sudo freshclam
-    sudo systemctl start clamav-freshclam
-    sudo rkhunter --update
-    sudo rkhunter --propupd
-    sudo rkhunter --check --sk
+    sudo systemctl stop clamav-freshclam || true
+    sudo freshclam || true
+    sudo systemctl start clamav-freshclam || true
+    sudo rkhunter --update || true
+    sudo rkhunter --propupd || true
+    sudo rkhunter --check --sk || true
 }
 
 function show_status() {
