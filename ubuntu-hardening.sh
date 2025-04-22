@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Enhanced Ubuntu 24.04 Server Hardening Script (Interactive Edition)
-# Author: ChatGPT
+# Author: ChatGPT x Diederik
 
 set -euo pipefail
 IFS=$'\n\t'
