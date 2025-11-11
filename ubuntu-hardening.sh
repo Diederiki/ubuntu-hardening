@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Enhanced Ubuntu 24.04 Server Hardening Script (Interactive Edition)
-# Author: ChatGPT x Diederik
-# Fixed by Grok: Corrected iptables syntax in Suricata config, fixed Fail2Ban regex for Suricata, enabled NFQ in suricata.yaml, added suricata-update, handled non-interactive mode for Certbot properly, added nginx installation (assuming nginx usage), minor improvements for robustness.
+# Author: Diederik
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -70,11 +69,37 @@ update_system() {
 
 configure_ssh() {
   log "Configuring SSH to listen on port $SSH_PORT only..."
-  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+  
+  # Backup config files
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak 2>/dev/null || true
+  cp /lib/systemd/system/ssh.socket /lib/systemd/system/ssh.socket.bak 2>/dev/null || true
+  
+  # Update sshd_config: Remove existing Port lines and add new one
   sed -ri '/^\s*Port\s+[0-9]+/d' /etc/ssh/sshd_config
   echo "Port $SSH_PORT" >> /etc/ssh/sshd_config
-  sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
-  systemctl restart ssh
+  
+  # Disable root login (more robust sed)
+  sed -ri 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+  
+  # Update systemd socket for Ubuntu 22.10+ (ListenStream)
+  if [[ -f /lib/systemd/system/ssh.socket ]]; then
+    sed -i "s/ListenStream=22/ListenStream=$SSH_PORT/" /lib/systemd/system/ssh.socket
+    systemctl daemon-reload
+  else
+    warn "ssh.socket not found; assuming legacy setup."
+  fi
+  
+  # Restart SSH
+  if systemctl restart ssh; then
+    log "SSH restarted successfully. Verify with: ss -tuln | grep $SSH_PORT"
+    if command -v ss >/dev/null 2>&1 && [[ $(ss -tuln | grep -c ":$SSH_PORT ") -gt 0 ]]; then
+      log "✅ SSH is now listening on port $SSH_PORT"
+    else
+      warn "SSH may not be listening on $SSH_PORT—check manually with ss -tuln or netstat."
+    fi
+  else
+    error "❌ Failed to restart SSH. Check syntax: sshd -t"
+  fi
 }
 
 configure_ufw() {
@@ -85,6 +110,7 @@ configure_ufw() {
   ufw allow 80/tcp
   ufw allow 443/tcp
   ufw --force enable
+  log "UFW enabled. Note: If Suricata IPS is active, it may override some UFW rules."
 }
 
 configure_suricata() {
@@ -97,14 +123,22 @@ configure_suricata() {
   fi
 
   # Update Suricata rules
-  suricata-update
+  if command -v suricata-update >/dev/null 2>&1; then
+    suricata-update
+  else
+    warn "suricata-update not available; skipping rule updates."
+  fi
 
   # Enable NFQ section in suricata.yaml
-  sed -i '/^#nfq:/,/^$/ s/^#//' /etc/suricata/suricata.yaml
+  if [[ -f /etc/suricata/suricata.yaml ]]; then
+    sed -i '/^#nfq:/,/^$/ s/^#//' /etc/suricata/suricata.yaml
+  fi
 
   # Flush and set iptables rules
   iptables -F; iptables -X
-  iptables -A INPUT -p tcp --dport "$SSH_PORT" -s "$trusted_ip" -j ACCEPT
+  if [[ -n "$trusted_ip" ]]; then
+    iptables -A INPUT -p tcp --dport "$SSH_PORT" -s "$trusted_ip" -j ACCEPT
+  fi
   iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
   iptables -A INPUT -i "$iface" -j NFQUEUE --queue-num 0
   iptables -A OUTPUT -o "$iface" -j NFQUEUE --queue-num 0
@@ -126,6 +160,7 @@ WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
   systemctl enable --now suricata-ips
+  log "Suricata IPS service started."
 }
 
 configure_fail2ban() {
@@ -174,21 +209,53 @@ install_certbot() {
 
 extra_hardening() {
   log "Configuring unattended upgrades, Portsentry, Rkhunter, ClamAV..."
-  dpkg-reconfigure -f noninteractive unattended-upgrades
-  sed -ri \
-    -e 's/^TCP_MODE="tcp"/TCP_MODE="atcp"/' \
-    -e 's/^UDP_MODE="udp"/UDP_MODE="audp"/' \
-    /etc/default/portsentry
-  sed -ri \
-    -e 's/^#?BLOCK_TCP=.*/BLOCK_TCP="1"/' \
-    -e 's/^#?BLOCK_UDP=.*/BLOCK_UDP="1"/' \
-    -e 's|^#?KILL_ROUTE=.*|KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"|' \
-    /etc/portsentry/portsentry.conf
-  systemctl restart portsentry
+  
+  # Install missing packages to ensure configs exist
+  if ! dpkg -l | grep -q unattended-upgrades; then
+    apt install -y unattended-upgrades
+  fi
+  if ! dpkg -l | grep -q portsentry; then
+    apt install -y portsentry
+  fi
+  if ! dpkg -l | grep -q rkhunter; then
+    apt install -y rkhunter
+  fi
+  if ! dpkg -l | grep -q clamav; then
+    apt install -y clamav
+  fi
+  
+  # Now configure
+  dpkg-reconfigure -f noninteractive unattended-upgrades || warn "Unattended-upgrades reconfigure skipped (may already be set)"
+  
+  # Configure PortSentry (file now exists)
+  if [[ -f /etc/default/portsentry ]]; then
+    sed -ri \
+      -e 's/^TCP_MODE="tcp"/TCP_MODE="atcp"/' \
+      -e 's/^UDP_MODE="udp"/UDP_MODE="audp"/' \
+      /etc/default/portsentry
+  else
+    warn "PortSentry config /etc/default/portsentry still missing after install—skipping mode changes."
+  fi
+  
+  if [[ -f /etc/portsentry/portsentry.conf ]]; then
+    sed -ri \
+      -e 's/^#?BLOCK_TCP=.*/BLOCK_TCP="1"/' \
+      -e 's/^#?BLOCK_UDP=.*/BLOCK_UDP="1"/' \
+      -e 's|^#?KILL_ROUTE=.*|KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"|' \
+      /etc/portsentry/portsentry.conf
+  else
+    warn "PortSentry main config missing—skipping block rules."
+  fi
+  
+  systemctl restart portsentry || warn "PortSentry restart failed (may not be running yet)"
+  
+  # ClamAV and RKHunter (already handled with || warn)
   freshclam || warn "Freshclam update failed"
   rkhunter --update || warn "Rkhunter update failed"
   rkhunter --propupd || warn "Rkhunter property update failed"
   rkhunter --check --sk || warn "Rkhunter scan incomplete"
+  
+  log "Extra hardening complete!"
 }
 
 show_status() {
@@ -201,7 +268,7 @@ show_status() {
   echo -e "\n${BLUE}ClamAV:${RESET} "; command -v clamscan &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
   echo -e "\n${BLUE}Rkhunter:${RESET} "; command -v rkhunter &>/dev/null && echo -e "${GREEN}OK${RESET}" || echo -e "${RED}Missing${RESET}"
   # Pause to allow user to review
-  read -r -p "\nPress Enter to return to menu..."
+  [[ "$NONINTERACTIVE" == true ]] || read -r -p "\nPress Enter to return to menu..."
 }
 
 # === New Helpers ===
@@ -209,13 +276,13 @@ view_logs() {
   local srv=$1
   log "Showing last 20 lines of ${srv} logs:"
   journalctl -u "${srv}" -n 20 --no-pager
-  read -r -p "Press Enter to continue..."
+  [[ "$NONINTERACTIVE" == true ]] || read -r -p "Press Enter to continue..."
 }
 
 view_iptables() {
   log "Current iptables rules:"
   iptables -L -n -v
-  read -r -p "Press Enter to continue..."
+  [[ "$NONINTERACTIVE" == true ]] || read -r -p "Press Enter to continue..."
 }
 
 # === Improved Menu UI ===
@@ -230,7 +297,7 @@ menu() {
   clear
   draw_box "Ubuntu Server Hardening"
   echo -e "${GREEN} 1)${RESET} Update system"
-  echo -e "${GREEN} 2)${RESET} Configure SSH Port to 3022"
+  echo -e "${GREEN} 2)${RESET} Configure SSH Port to $SSH_PORT"
   echo -e "${GREEN} 3)${RESET} Configure UFW Firewall"
   echo -e "${GREEN} 4)${RESET} Configure Suricata IPS (Intrusion Prevention System)"
   echo -e "${GREEN} 5)${RESET} Configure Fail2Ban"
@@ -268,6 +335,8 @@ while true; do
     0) log "Exiting."; exit 0 ;;
     *) warn "Invalid choice, try again." ;;
   esac
-  echo -e "\n${GREEN}✅ Done. Returning to menu...${RESET}"
-  sleep 1
+  if [[ "$NONINTERACTIVE" == false ]]; then
+    echo -e "\n${GREEN}✅ Done. Returning to menu...${RESET}"
+    sleep 1
+  fi
 done
