@@ -28,7 +28,7 @@ This interactive, colorful Bash script secures your Ubuntu system with a one-sto
 
 1.
 ```bash
-wget https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh | bash
+wget https://raw.githubusercontent.com/Diederiki/ubuntu-hardening/main/ubuntu-hardening.sh
 ```
 
 2. sudo chmod +x ubuntu-hardening.sh
